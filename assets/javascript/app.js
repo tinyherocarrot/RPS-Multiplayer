@@ -24,10 +24,41 @@
   };
   firebase.initializeApp(config);
 
+var database = firebase.database();
+
+// connectionsRef references a specific location in our database.
+// All of our connections will be stored in this directory.
+var connectionsRef = database.ref("/connections");
+
+// '.info/connected' is a special location provided by Firebase that is updated
+// every time the client's connection state changes.
+// '.info/connected' is a boolean value, true if the client is connected and false if they are not.
+var connectedRef = database.ref(".info/connected");
+
+// When the client's connection state changes...
+connectedRef.on("value", function(snap) {
+
+  // If they are connected..
+  if (snap.val()) {
+
+    // Add user to the connections list.
+    var con = connectionsRef.push(true);
+    // Remove user from the connection list when they disconnect.
+    con.onDisconnect().remove();
+  }
+});
+
+// When first loaded or when the connections list changes...
+connectionsRef.on("value", function(snap) {
+	if (snap.numChildren() < numChildren) {
+		numChildren = snap.numChildren();
+	}
+	//notify that someone has disconnected
+});
+
 
 // variables
 // ===============================================
-var database = firebase.database();
 
 var playerOneName = "";
 var playerOneChoice = "";
@@ -41,7 +72,7 @@ var roundResult;
 var numChildren = 0;
 database.ref("/numChildren").on("value", function(snapshot) {
 	numChildren = snapshot.val();
-	console.log(numChildren + " num children after an update")
+	console.log(numChildren + " num children after a Firebase update")
 });
 
 console.log(numChildren + ", this is the number of children")
@@ -78,6 +109,25 @@ function evaluate(choice1, choice2) {
 	}
 };
 
+function checkBothGuessed() {
+	database.ref().once("value", function(snapshot) {
+		console.log("Firebase snapshot when checking if both guessed: " + snapshot.val());
+		var p1choice = snapshot.ref("/player-1").val().choice;
+		var p2choice = snapshot.ref("/player-2").val().choice;
+
+		console.log(p1choice, p2choice);
+
+		if ((p1choice !== "") && (p2choice !== "")) {
+			console.log("RUNNING BATTLE NOW ^");
+			// console.log("player one chose " + playerOneChoice, "player two chose " + playerTwoChoice);
+			roundResult = evaluate(p1choice, p2choice);
+		
+			console.log("battle result: " + roundResult)
+			database.ref("/roundResult").set(roundResult);
+
+		}
+	})
+}
 
 
 
@@ -153,6 +203,8 @@ $(".rps").on("click", function() {
 			choice: playerTwoChoice
 		})
 	}
+
+	checkBothGuessed();
 	
 });
 
@@ -172,6 +224,8 @@ database.ref().on("value", function(snapshot) {
 	
 })
 
+
+
 // When Firebase updates a player choice, update display to show only player choice 
 database.ref().on("child_changed", function(snapshot) {
 	console.log("player choice pulled from Firebase is: " + snapshot.val().choice);
@@ -179,17 +233,17 @@ database.ref().on("child_changed", function(snapshot) {
 	 console.log("player " + playerNum + " should now locally update");
 
 	// update opposing player's choice from database
-	console.log("playerId: " + snapshot.ref().parent().playerId, typeof snapshot.ref().parent().playerId)
-	//if its player1 and captured change wasnt from player1, then save it locally as player2's choice
-	if ((playerNum === "1") && (snapshot.val().playerId !== "1")) {
-		playerTwoChoice = snapshot.val().choice;
-		console.log("now player 2 choice is " + playerTwoChoice)
+	// console.log("playerId: " + snapshot.ref.parent().playerId, typeof snapshot.ref.parent().playerId)
+	// //if you're player1 and captured change wasnt from player1, then save it locally as player2's choice
+	// if ((playerNum === "1") && (snapshot.val().playerId !== "1")) {
+	// 	playerTwoChoice = snapshot.val().choice;
+	// 	console.log("now player 2 choice is " + playerTwoChoice)
 
-	//else if its player2 and captured change wasnt from player2, then save it locally as player1's choice
-	} else if ((playerNum === "2") && (snapshot.val().playerId !== "2")) {
-		playerOneChoice = snapshot.val().choice;
-		console.log("now player 1 choice is " + playerOneChoice)
-	}
+	// //else if you're player2 and captured change wasnt from player2, then save it locally as player1's choice
+	// } else if ((playerNum === "2") && (snapshot.val().playerId !== "2")) {
+	// 	playerOneChoice = snapshot.val().choice;
+	// 	console.log("now player 1 choice is " + playerOneChoice)
+	// }
 
 
 	//if both player choices have been submitted, run evaluate
